@@ -2,11 +2,13 @@
   "name": "electron-license-app",
   "version": "1.0.0",
   "description": "Simple Electron license validation app for Tensor HVAC",
+  "author": "PT Tensor",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "clean": "rimraf dist"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -14,37 +16,46 @@
   },
   "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.9.1"
+    "electron-builder": "^24.9.1",
+    "rimraf": "^5.0.5"
   },
   "build": {
-    "appId": "com.pttensor.licenseapp",
-    "productName": "Tensor HVAC Licensing",
-    "files": [
-      "main.js",
-      "preload.cjs",
-      "services/**/*",
-      "src/**/*",
-      ".env",
-      "package.json"
-    ],
-    "extraResources": [
-      "license-cache.json"
-    ],
-    "directories": {
-      "buildResources": "assets",
-      "output": "dist"
+  "appId": "com.pttensor.licenseapp",
+  "productName": "Tensor HVAC Licensing",
+  "asar": true,
+  "files": [
+    "main.js",
+    "preload.cjs",
+    "services/**/*",
+    "src/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": ".env",
+      "to": ".env"
     },
-    "win": {
-      "target": "nsis",
-      "icon": "assets/icon.ico"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "assets/icon.icns"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "assets/icons/"
+    {
+      "from": "license-cache.json",
+      "to": "license-cache.json"
     }
+  ],
+  "directories": {
+    "buildResources": "assets",
+    "output": "dist"
+  },
+  "win": {
+    "target": "nsis",
+    "icon": "assets/icon.ico"
+  },
+  "mac": {
+    "target": "dmg",
+    "icon": "assets/icon.icns"
+  },
+  "linux": {
+    "target": "AppImage",
+    "icon": "assets/icons/"
   }
+}
+
 }

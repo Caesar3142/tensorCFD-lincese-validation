@@ -1,24 +1,36 @@
 // main.js
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
-import { fileURLToPath } from "url";
 import fs from "fs";
 import keytar from "keytar";
-import "dotenv/config";
-import { validateLicense, isExpired } from "./services/licenseService.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// ===== 1) EMBED YOUR CONFIG HERE (no .env needed) =====
+const EMBEDDED_CONFIG = {
+  LICENSE_LIST_URL: "https://pttensor.com/tensorhvac-licensing" // <-- change if needed
+};
+// ======================================================
 
-const PRELOAD_PATH = path.resolve(__dirname, "preload.cjs");  // CommonJS preload
-const CACHE_PATH   = path.join(__dirname, "license-cache.json");
+// We will import licenseService.js AFTER we set process.env
+let validateLicense;
+let isExpired;
+
+// ── Detect environment & common paths
+const isDev = !app.isPackaged;
+const APP_PATH = app.getAppPath(); // ASAR root in production, project root in dev
+const PRELOAD_PATH = path.join(APP_PATH, "preload.cjs");
+const CACHE_PATH = path.join(app.getPath("userData"), "license-cache.json");
+
 const SERVICE_NAME = "electron-license-app";
 const ACCOUNT_NAME = "license";
 
-let mainWindow;
+let mainWindow = null;
 
-// ---------- helpers
-function createWindow(htmlPath) {
+// ── Helper to resolve bundled HTML
+function resolveHtml(rel) {
+  return path.join(APP_PATH, rel); // e.g. "src/index.html"
+}
+
+function createWindow(htmlFile) {
   const win = new BrowserWindow({
     width: 900,
     height: 640,
@@ -26,15 +38,15 @@ function createWindow(htmlPath) {
       preload: PRELOAD_PATH,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
-    },
+      sandbox: false
+    }
   });
 
   win.webContents.on("console-message", (_level, _line, message) => {
-    console.log("[Renderer Log]", message);
+    console.log("[Renderer]", message);
   });
 
-  win.loadFile(htmlPath);
+  win.loadFile(htmlFile);
   return win;
 }
 
@@ -61,48 +73,59 @@ async function clearCachedLicense() {
   try { await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME); } catch {}
 }
 
-// NEW: Always re-validate the cached license against your website on startup
+// ── Boot: re-validate license on every start using cached creds
 async function boot() {
   const cached = await getCachedLicense();
 
-  // No cache → show login
   if (!cached || !cached.email || !cached.product_key) {
-    return path.join(__dirname, "src", "index.html");
+    return resolveHtml("src/index.html");
   }
 
-  // Expired by date → clear & show login
   if (isExpired(cached.end_date)) {
     await clearCachedLicense();
-    return path.join(__dirname, "src", "index.html");
+    return resolveHtml("src/index.html");
   }
 
-  // Re-check with the live license list on your website
   const res = await validateLicense(cached.email, cached.product_key);
   if (res?.ok && !isExpired(res.end_date)) {
-    // refresh cached end date (in case you extended it online)
-    setCachedLicense({
-      email: cached.email,
-      product_key: cached.product_key,
-      end_date: res.end_date,
-    });
-    return path.join(__dirname, "src", "app.html");
+    setCachedLicense({ email: cached.email, product_key: cached.product_key, end_date: res.end_date });
+    return resolveHtml("src/app.html");
   }
 
-  // Revoked/changed/expired online → force login
   await clearCachedLicense();
-  return path.join(__dirname, "src", "index.html");
+  return resolveHtml("src/index.html");
 }
 
-// ---------- app lifecycle
-app.whenReady().then(async () => {
-  console.log("[MAIN] App starting, preload path:", PRELOAD_PATH);
+// ── Ensure env + dynamic import happen before we use the service
+async function loadServices() {
+  // Set env for licenseService.js (so it reads the correct URL)
+  if (!process.env.LICENSE_LIST_URL) {
+    process.env.LICENSE_LIST_URL = EMBEDDED_CONFIG.LICENSE_LIST_URL;
+  }
+  console.log("[MAIN] Using LICENSE_LIST_URL:", process.env.LICENSE_LIST_URL);
 
-  const startHtml = await boot();       // <-- revalidates every start
-  mainWindow = createWindow(startHtml);
+  // Dynamic import AFTER env is set
+  const mod = await import("./services/licenseService.js");
+  validateLicense = mod.validateLicense;
+  isExpired = mod.isExpired;
+}
+
+// ── App lifecycle
+app.whenReady().then(async () => {
+  console.log("[MAIN] Mode:", isDev ? "Development" : "Production");
+  console.log("[MAIN] APP_PATH:", APP_PATH);
+  console.log("[MAIN] PRELOAD_PATH:", PRELOAD_PATH);
+  console.log("[MAIN] CACHE_PATH:", CACHE_PATH);
+
+  // Load services (sets env and then imports licenseService)
+  await loadServices();
+
+  const htmlToLoad = await boot();
+  mainWindow = createWindow(htmlToLoad);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow(path.join(__dirname, "src", "index.html"));
+      createWindow(resolveHtml("src/index.html"));
     }
   });
 });
@@ -111,7 +134,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-// ---------- IPC
+// ── IPC
 ipcMain.handle("license:validate", async (_evt, { email, productKey }) => {
   const result = await validateLicense(email, productKey);
   if (result.ok) {
@@ -122,52 +145,49 @@ ipcMain.handle("license:validate", async (_evt, { email, productKey }) => {
 
 ipcMain.handle("app:proceed", async () => {
   if (!mainWindow) return { ok: false, message: "No main window" };
-  await mainWindow.loadFile(path.join(__dirname, "src", "app.html"));
+  await mainWindow.loadFile(resolveHtml("src/app.html"));
   return { ok: true };
 });
 
-// Logout (your original channel)
 ipcMain.handle("app:logout", async () => {
   try {
     await clearCachedLicense();
     if (mainWindow) {
-      await mainWindow.loadFile(path.join(__dirname, "src", "index.html"));
+      await mainWindow.loadFile(resolveHtml("src/index.html"));
     }
     return { ok: true };
   } catch (err) {
-    console.error("[MAIN] Failed during logout", err);
-    return { ok: false, message: err?.message || String(err) };
+    console.error("[MAIN] Logout failed", err);
+    return { ok: false, message: err.message };
   }
 });
 
-// Compatibility: also provide license:logout if your preload/UI uses that
 ipcMain.handle("license:logout", async () => {
   try {
     await clearCachedLicense();
     if (mainWindow) {
-      await mainWindow.loadFile(path.join(__dirname, "src", "index.html"));
+      await mainWindow.loadFile(resolveHtml("src/index.html"));
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, message: err?.message || String(err) };
+    return { ok: false, message: err.message };
   }
 });
 
-// OPTIONAL: manual recheck without restarting (call from UI if desired)
 ipcMain.handle("license:revalidateNow", async () => {
   const cached = await getCachedLicense();
   if (!cached?.email || !cached?.product_key) {
-    if (mainWindow) await mainWindow.loadFile(path.join(__dirname, "src", "index.html"));
+    if (mainWindow) await mainWindow.loadFile(resolveHtml("src/index.html"));
     return { ok: false, message: "No cached license." };
   }
   const res = await validateLicense(cached.email, cached.product_key);
   if (res?.ok && !isExpired(res.end_date)) {
     setCachedLicense({ email: cached.email, product_key: cached.product_key, end_date: res.end_date });
-    if (mainWindow) await mainWindow.loadFile(path.join(__dirname, "src", "app.html"));
+    if (mainWindow) await mainWindow.loadFile(resolveHtml("src/app.html"));
     return { ok: true, message: "License valid." };
   } else {
     await clearCachedLicense();
-    if (mainWindow) await mainWindow.loadFile(path.join(__dirname, "src", "index.html"));
+    if (mainWindow) await mainWindow.loadFile(resolveHtml("src/index.html"));
     return { ok: false, message: res?.message || "License invalid." };
   }
 });
