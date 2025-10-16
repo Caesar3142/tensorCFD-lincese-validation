@@ -35,10 +35,32 @@ async function loadLicenses() {
   const res = await fetch(PAGE_URL, { method: 'GET' });
   if (!res.ok) throw new Error(`Failed fetching license page: ${res.status}`);
 
+  // Support both HTML pages that embed the licenses JSON inside a
+  // <script type="application/json" id="licenses">...</script>
+  // and direct JSON endpoints that return application/json.
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  const debug = Boolean(process.env.LICENSE_DEBUG || process.env.LICENSE_LIST_DEBUG);
+  if (contentType.includes('application/json') || contentType.includes('+json')) {
+    const json = await res.json();
+    // If the endpoint returns an object that wraps the array, try to find it
+    if (Array.isArray(json)) return json;
+    if (json && Array.isArray(json.licenses)) return json.licenses;
+    if (debug) {
+      console.error('[licenseService] Unexpected JSON shape from LICENSE_LIST_URL:', JSON.stringify(json).slice(0, 2000));
+    }
+    throw new Error('Expected JSON array of licenses from LICENSE_LIST_URL');
+  }
+
   const html = await res.text();
   const licenses = extractJsonFromHtml(html);
 
-  if (!Array.isArray(licenses)) throw new Error('Licenses JSON must be an array.');
+  if (!Array.isArray(licenses)) {
+    if (debug) {
+      console.error('[licenseService] Failed to extract <script id="licenses"> from fetched HTML. content-type:', contentType);
+      console.error('[licenseService] HTML snippet (first 2000 chars):\n', html.slice(0, 2000));
+    }
+    throw new Error('Licenses JSON must be an array.');
+  }
   return licenses;
 }
 

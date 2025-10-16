@@ -96,3 +96,34 @@ ipcMain.handle("app:proceed", async () => {
   await mainWindow.loadFile(path.join(__dirname, "src", "app.html"));
   return { ok: true };
 });
+
+ipcMain.handle("app:logout", async () => {
+  // Remove cache file if present
+  try {
+    if (fs.existsSync(CACHE_PATH)) {
+      fs.unlinkSync(CACHE_PATH);
+    }
+  } catch (err) {
+    console.error('[MAIN] Failed removing cache file', err);
+  }
+
+  // Remove credential from keytar
+  try {
+    if (keytar && typeof keytar.deletePassword === 'function') {
+      await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
+    }
+  } catch (err) {
+    console.error('[MAIN] Failed clearing keytar entry', err);
+  }
+
+  // Navigate back to the login page
+  try {
+    if (mainWindow) {
+      await mainWindow.loadFile(path.join(__dirname, "src", "index.html"));
+    }
+  } catch (err) {
+    console.error('[MAIN] Failed loading index.html after logout', err);
+  }
+
+  return { ok: true };
+});

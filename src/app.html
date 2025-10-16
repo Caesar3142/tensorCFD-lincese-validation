@@ -13,6 +13,12 @@
 <body>
   <h1>Welcome ✨</h1>
   <p>This is your Electron app content. Replace with your real UI.</p>
+  <div style="margin-top:20px;">
+    <button id="logoutBtn" style="padding:8px 12px; border-radius:8px; border:none; background:#ef4444; color:white; cursor:pointer;">Logout</button>
+  </div>
   <span class="tag">Licensed</span>
+
+  <!-- External renderer script to satisfy CSP (no inline scripts) -->
+  <script src="appRenderer.js"></script>
 </body>
 </html>

@@ -1,16 +1,50 @@
 {
   "name": "electron-license-app",
   "version": "1.0.0",
+  "description": "Simple Electron license validation app for Tensor HVAC",
   "main": "main.js",
   "type": "module",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
     "keytar": "^7.9.0"
   },
   "devDependencies": {
-    "electron": "^31.0.0"
+    "electron": "^31.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.pttensor.licenseapp",
+    "productName": "Tensor HVAC Licensing",
+    "files": [
+      "main.js",
+      "preload.cjs",
+      "services/**/*",
+      "src/**/*",
+      ".env",
+      "package.json"
+    ],
+    "extraResources": [
+      "license-cache.json"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icons/"
+    }
   }
 }

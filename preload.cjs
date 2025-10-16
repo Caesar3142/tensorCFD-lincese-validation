@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld("api", {
   validateLicense: (email, productKey) =>
     ipcRenderer.invoke("license:validate", { email, productKey }),
   proceedToApp: () => ipcRenderer.invoke("app:proceed"),
+  logout: () => ipcRenderer.invoke('app:logout'),
 });
