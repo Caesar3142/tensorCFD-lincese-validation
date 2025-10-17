@@ -2,23 +2,74 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self';
+                 style-src 'self' 'unsafe-inline'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My App</title>
+  <title>tensorCFD License — Licensed</title>
   <style>
+    :root {
+      color-scheme: light dark;
+    }
     body { font-family: system-ui, Arial, sans-serif; padding: 24px; }
+    h1 { margin-bottom: 8px; }
+    p { margin: 0 0 16px 0; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; margin-top: 16px; }
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-secondary { background: #6b7280; color: #fff; }
+    .btn-danger { background: #ef4444; color: #fff; }
     .tag { display:inline-block; background:#e5e7eb; padding:4px 10px; border-radius:999px; font-size:12px; }
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      max-width: 720px;
+      margin-top: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      .tag { background: #374151; color:#e5e7eb; }
+      .card { border-color:#374151; }
+    }
+    #status {
+      margin-top: 8px;
+      font-size: 13px;
+      opacity: 0.85;
+    }
   </style>
 </head>
 <body>
   <h1>Welcome ✨</h1>
-  <p>This is your Electron app content. Replace with your real UI.</p>
-  <div style="margin-top:20px;">
-    <button id="logoutBtn" style="padding:8px 12px; border-radius:8px; border:none; background:#ef4444; color:white; cursor:pointer;">Logout</button>
+  <span class="tag" aria-label="License status">Licensed</span>
+  <div class="card">
+    <p>You’re signed in. You can launch the Pro application any time:</p>
+    <div class="row">
+      <button id="launchProBtn" class="btn btn-primary" aria-label="Launch tensorHVAC-Pro-2025">
+        Launch tensorHVAC-Pro-2025
+      </button>
+      <button id="revalidateBtn" class="btn btn-secondary" aria-label="Revalidate license now">
+        Revalidate License
+      </button>
+      <button id="logoutBtn" class="btn btn-danger" aria-label="Logout">
+        Logout
+      </button>
+    </div>
+    <div id="status" role="status" aria-live="polite"></div>
   </div>
-  <span class="tag">Licensed</span>
 
-  <!-- External renderer script to satisfy CSP (no inline scripts) -->
+  <!-- External renderer script to satisfy CSP (no inline scripts).
+       It should attach click handlers to:
+       - #launchProBtn -> ipcRenderer.invoke('pro:launch')
+       - #revalidateBtn -> ipcRenderer.invoke('license:revalidateNow')
+       - #logoutBtn -> ipcRenderer.invoke('app:logout')
+       and update #status with results. -->
   <script src="appRenderer.js"></script>
 </body>
 </html>
