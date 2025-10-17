@@ -2,7 +2,7 @@
 // tensorCFD-license-validation — Electron main process (ESM)
 // Validates license and launches tensorHVAC-Pro-2025 ONLY on button click,
 // with robust Windows launch fallbacks, PID feedback, a persistent path override,
-// and quick “is running?” diagnostics.
+// and clear license diagnostics.
 
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "path";
@@ -26,22 +26,13 @@ const EMBEDDED_CONFIG = {
 
   PRO_APP_CANDIDATES: {
     win32: [
-      // Protected install path FIRST
       "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\tensorhvac-pro\\TensorHVAC Pro.exe",
-      // Previous default
       "C:\\tensorCFD\\tensorHVAC-Pro-2025\\tensorHVAC-Pro-2025.exe",
-      // Optional fallback inside app resources
       path.join(process.resourcesPath ?? "", "tensorHVAC-Pro-2025.exe"),
     ],
     darwin: [
       "/Applications/tensorHVAC-Pro-2025.app/Contents/MacOS/tensorHVAC-Pro-2025",
-      path.join(
-        process.resourcesPath ?? "",
-        "tensorHVAC-Pro-2025.app",
-        "Contents",
-        "MacOS",
-        "tensorHVAC-Pro-2025"
-      ),
+      path.join(process.resourcesPath ?? "", "tensorHVAC-Pro-2025.app", "Contents", "MacOS", "tensorHVAC-Pro-2025"),
     ],
     linux: [
       "/opt/tensorhvac-pro-2025/tensorHVAC-Pro-2025",
@@ -49,7 +40,6 @@ const EMBEDDED_CONFIG = {
     ],
   },
 
-  // Optional one-off override via environment for testing
   PRO_APP_HINT: process.env.PRO_APP_HINT || "",
 };
 // ============================================================
@@ -101,21 +91,13 @@ async function getCachedLicense() {
 }
 
 function setCachedLicense(data) {
-  try {
-    fs.writeFileSync(CACHE_PATH, JSON.stringify(data, null, 2));
-  } catch {}
-  try {
-    keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, JSON.stringify(data));
-  } catch {}
+  try { fs.writeFileSync(CACHE_PATH, JSON.stringify(data, null, 2)); } catch {}
+  try { keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, JSON.stringify(data)); } catch {}
 }
 
 async function clearCachedLicense() {
-  try {
-    if (fs.existsSync(CACHE_PATH)) fs.unlinkSync(CACHE_PATH);
-  } catch {}
-  try {
-    await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
-  } catch {}
+  try { if (fs.existsSync(CACHE_PATH)) fs.unlinkSync(CACHE_PATH); } catch {}
+  try { await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME); } catch {}
 }
 
 /* ------------------- Pro path persistence ------------------- */
@@ -151,7 +133,6 @@ function candidateList() {
   else if (plat === "darwin") list.push(...(EMBEDDED_CONFIG.PRO_APP_CANDIDATES.darwin || []));
   else list.push(...(EMBEDDED_CONFIG.PRO_APP_CANDIDATES.linux || []));
 
-  // unique + trimmed
   return [...new Set(list.filter(Boolean))];
 }
 
@@ -187,7 +168,6 @@ function getArgs() {
   return [`--handshake=${EMBEDDED_CONFIG.HANDSHAKE_PASSWORD}`];
 }
 
-// Optional quick “is running?” check (Windows only)
 function isProcessRunningWin(exeBaseName) {
   return new Promise((resolve) => {
     exec('tasklist /FO CSV /NH', { windowsHide: true }, (err, stdout) => {
@@ -206,10 +186,10 @@ function isProcessRunningWin(exeBaseName) {
 function launchProApp() {
   const exe = findProExecutable();
   if (!exe) {
-    const msg =
-      "tensorHVAC-Pro-2025 executable not found.\n\n" +
-      "Use the Launch button → “Browse…” (or call pro:pickPath) to set the correct path.";
-    dialog.showErrorBox("Launch Error", msg);
+    dialog.showErrorBox(
+      "Launch Error",
+      "tensorHVAC-Pro-2025 executable not found.\n\nUse the Launch button → “Browse…” (or call pro:pickPath) to set the correct path."
+    );
     return { ok: false, message: "Pro app not found" };
   }
 
@@ -217,11 +197,10 @@ function launchProApp() {
   const args = getArgs();
   const cwd = path.dirname(exe);
 
-  // Strategy 1: spawn (GUI should appear; windowsHide=false on win32)
+  // Strategy 1: spawn
   try {
     const child = spawn(exe, args, {
-      env,
-      cwd,
+      env, cwd,
       detached: process.platform !== "win32",
       stdio: "ignore",
       windowsHide: process.platform === "win32" ? false : true,
@@ -245,7 +224,7 @@ function launchProApp() {
     console.warn("[PRO] execFile failed:", err2?.message || err2);
   }
 
-  // Strategy 3+ (Windows only)
+  // Windows fallbacks
   if (process.platform === "win32") {
     // 3) cmd start
     try {
@@ -269,7 +248,7 @@ function launchProApp() {
       console.warn("[PRO] PowerShell failed:", err4?.message || err4);
     }
 
-    // 5) explorer.exe (opens in foreground)
+    // 5) explorer.exe
     try {
       const child = exec(`explorer.exe "${exe}"`, { env, cwd, windowsHide: false });
       const pid = child?.pid || null;
@@ -318,6 +297,10 @@ async function loadServices() {
   const mod = await import("./services/licenseService.js");
   validateLicense = mod.validateLicense;
   isExpired = mod.isExpired;
+
+  if (!validateLicense || !isExpired) {
+    console.error("[MAIN] licenseService not loaded correctly.");
+  }
 }
 
 /* --------------------- Single instance ---------------------- */
@@ -356,22 +339,47 @@ app.on("window-all-closed", () => {
 });
 
 /* -------------------------- IPC ----------------------------- */
+// Validate & cache (returns descriptive message)
 ipcMain.handle("license:validate", async (_evt, { email, productKey }) => {
-  const result = await validateLicense(email, productKey);
-  if (result.ok) {
-    setCachedLicense({ email, product_key: productKey, end_date: result.end_date });
+  try {
+    const result = await validateLicense(email, productKey);
+    console.log("[LICENSE] validate", { email, ok: result.ok, msg: result.message, end: result.end_date, offline: result.offline });
+    if (result.ok) {
+      setCachedLicense({ email, product_key: productKey, end_date: result.end_date });
+    }
+    return result;
+  } catch (e) {
+    console.error("[LICENSE] validate error:", e);
+    return { ok: false, message: e?.message || "Validation failed." };
   }
-  return result;
 });
 
-// Proceed from login → licensed screen (NO launch here)
+// Proceed to licensed UI (no auto-launch)
 ipcMain.handle("app:proceed", async () => {
   if (!mainWindow) return { ok: false, message: "No main window" };
   await mainWindow.loadFile(resolveHtml("src/app.html"));
   return { ok: true };
 });
 
-// Button from renderer to explicitly launch Pro (returns strategy, pid, and running?)
+// Optional helpers to inspect/clear cached license
+ipcMain.handle("license:status", async () => {
+  try {
+    const cached = await getCachedLicense();
+    return { ok: true, cached };
+  } catch (e) {
+    return { ok: false, message: e?.message || "Failed to read cache." };
+  }
+});
+ipcMain.handle("license:clear", async () => {
+  try {
+    await clearCachedLicense();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: e?.message || "Failed to clear cache." };
+  }
+});
+
+// Launch the Pro app (button)
 ipcMain.handle("pro:launch", async () => {
   const res = launchProApp();
   if (!res.ok) return res;
@@ -396,13 +404,11 @@ ipcMain.handle("pro:launch", async () => {
   };
 });
 
-// Diagnostics: which executable will be used
+// Diagnostics
 ipcMain.handle("pro:where", async () => {
   const exe = findProExecutable();
   return { exe, exists: !!(exe && fs.existsSync(exe)), platform: process.platform, candidates: candidateList() };
 });
-
-// Let user pick the Pro executable and persist it
 ipcMain.handle("pro:pickPath", async () => {
   const res = await dialog.showOpenDialog({
     title: "Select tensorHVAC-Pro-2025 executable",
@@ -419,11 +425,30 @@ ipcMain.handle("pro:pickPath", async () => {
   if (!saveProHint(chosen)) return { ok: false, message: "Failed to save override path" };
   return { ok: true, path: chosen };
 });
-
-// Programmatically set the override path
 ipcMain.handle("pro:setHint", async (_e, p) => {
   if (!p || typeof p !== "string") return { ok: false, message: "Invalid path" };
   if (!fs.existsSync(p)) return { ok: false, message: "Path does not exist" };
   if (!saveProHint(p)) return { ok: false, message: "Failed to save override path" };
   return { ok: true, path: p };
+});
+
+// Logout (✅ this is the handler your renderer is calling)
+ipcMain.handle("app:logout", async () => {
+  try {
+    await clearCachedLicense();
+    if (mainWindow) await mainWindow.loadFile(resolveHtml("src/index.html"));
+    return { ok: true };
+  } catch (err) {
+    console.error("[MAIN] Logout failed", err);
+    return { ok: false, message: err.message };
+  }
+});
+ipcMain.handle("license:logout", async () => {
+  try {
+    await clearCachedLicense();
+    if (mainWindow) await mainWindow.loadFile(resolveHtml("src/index.html"));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err.message };
+  }
 });
