@@ -1,6 +1,6 @@
 {
   "name": "tensorHVAC-Pro-Launcher",
-  "version": "2025.1.0",
+  "version": "2025.1.2",
   "description": "Validate the license and launch the tensorHVAC-Pro Setup app",
   "author": "PT Tensor",
   "main": "main.js",
