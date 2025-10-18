@@ -1,8 +1,3 @@
-// main.js
-// tensorCFD-license-validation — Electron main process (ESM)
-// Validates license and launches tensorHVAC-Pro-2025 ONLY on button click,
-// with robust Windows launch fallbacks, PID feedback, a persistent path override,
-// and clear license diagnostics.
 
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "path";

@@ -1,5 +1,3 @@
-// appRenderer.js — renderer for app.html
-// Attaches button handlers for launching Pro, revalidating license, and logout
 
 (function () {
   const launchBtn = document.getElementById("launchProBtn");

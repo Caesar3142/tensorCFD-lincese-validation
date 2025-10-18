@@ -1,7 +1,7 @@
 {
-  "name": "electron-license-app",
-  "version": "1.0.0",
-  "description": "Simple Electron license validation app for Tensor HVAC",
+  "name": "tensorHVAC-Pro Launcher",
+  "version": "2025.1.0",
+  "description": "Validate the license and launch the tensorHVAC-Pro Setup app",
   "author": "PT Tensor",
   "main": "main.js",
   "type": "module",
@@ -21,7 +21,7 @@
   },
   "build": {
   "appId": "com.pttensor.licenseapp",
-  "productName": "Tensor HVAC Licensing",
+  "productName": "Launcher tensorHVAC-Pro",
   "asar": true,
   "files": [
     "main.js",
@@ -31,10 +31,6 @@
     "package.json"
   ],
   "extraResources": [
-    {
-      "from": ".env",
-      "to": ".env"
-    },
     {
       "from": "license-cache.json",
       "to": "license-cache.json"
@@ -47,14 +43,6 @@
   "win": {
     "target": "nsis",
     "icon": "assets/icon.ico"
-  },
-  "mac": {
-    "target": "dmg",
-    "icon": "assets/icon.icns"
-  },
-  "linux": {
-    "target": "AppImage",
-    "icon": "assets/icons/"
   }
 }
 
