@@ -14,7 +14,7 @@ const PRO_PATH_CONFIG = path.join(app.getPath("userData"), "pro-path.json");
 const SERVICE_NAME = "electron-license-app";
 const ACCOUNT_NAME = "license";
 
-// ===== 1) EMBED YOUR CONFIG HERE (no .env needed) =====
+// ===== 1) EMBED YOUR CONFIG HERE =====
 const EMBEDDED_CONFIG = {
   LICENSE_LIST_URL: "https://pttensor.com/tensorhvac-licensing",
   HANDSHAKE_PASSWORD: "thvac-pro-2025-handshake-5f7c1a4e9b2d",
@@ -22,16 +22,6 @@ const EMBEDDED_CONFIG = {
   PRO_APP_CANDIDATES: {
     win32: [
       "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\tensorhvac-pro\\TensorHVAC Pro.exe",
-      "C:\\tensorCFD\\tensorHVAC-Pro-2025\\tensorHVAC-Pro-2025.exe",
-      path.join(process.resourcesPath ?? "", "tensorHVAC-Pro-2025.exe"),
-    ],
-    darwin: [
-      "/Applications/tensorHVAC-Pro-2025.app/Contents/MacOS/tensorHVAC-Pro-2025",
-      path.join(process.resourcesPath ?? "", "tensorHVAC-Pro-2025.app", "Contents", "MacOS", "tensorHVAC-Pro-2025"),
-    ],
-    linux: [
-      "/opt/tensorhvac-pro-2025/tensorHVAC-Pro-2025",
-      path.join(process.resourcesPath ?? "", "tensorHVAC-Pro-2025"),
     ],
   },
 

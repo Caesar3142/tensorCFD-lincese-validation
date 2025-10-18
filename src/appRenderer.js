@@ -1,7 +1,6 @@
 
 (function () {
   const launchBtn = document.getElementById("launchProBtn");
-  const revalidateBtn = document.getElementById("revalidateBtn");
   const logoutBtn = document.getElementById("logoutBtn");
   const statusEl = document.getElementById("status");
 
@@ -42,22 +41,6 @@
     });
   }
 
-  // ── Revalidate License
-  if (revalidateBtn) {
-    revalidateBtn.addEventListener("click", async () => {
-      revalidateBtn.disabled = true;
-      const prev = revalidateBtn.textContent;
-      revalidateBtn.textContent = "Checking…";
-      setStatus("Revalidating license…");
-
-      const res = await invoke("license:revalidateNow");
-      if (res.ok) setStatus("License is valid.");
-      else setStatus(res.message || "License invalid or expired.");
-
-      revalidateBtn.textContent = prev;
-      revalidateBtn.disabled = false;
-    });
-  }
 
   // ── Logout
   if (logoutBtn) {
