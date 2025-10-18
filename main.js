@@ -1,20 +1,29 @@
-
+// === Core Electron and Node imports ===
+// Import main Electron APIs, filesystem utilities, and child process execution methods.
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "path";
 import fs from "fs";
 import keytar from "keytar";
 import { spawn, execFile, exec } from "child_process";
 
+// === Environment and path setup ===
+// Define important paths and constants for app mode, preload script, cache, and Pro path config.
 const isDev = !app.isPackaged;
 const APP_PATH = app.getAppPath();
 const PRELOAD_PATH = path.join(APP_PATH, "preload.cjs");
 const CACHE_PATH = path.join(app.getPath("userData"), "license-cache.json");
 const PRO_PATH_CONFIG = path.join(app.getPath("userData"), "pro-path.json");
 
+// === Secure storage service config (Keytar) ===
+// Used to securely store the license key in OS credential vault (Keychain/Credential Manager/etc).
 const SERVICE_NAME = "electron-license-app";
 const ACCOUNT_NAME = "license";
 
 // ===== 1) EMBED YOUR CONFIG HERE =====
+// This section defines embedded configuration values, including:
+// - License verification URL
+// - Handshake password used between launcher and Pro app
+// - Candidate executable paths for Pro app
 const EMBEDDED_CONFIG = {
   LICENSE_LIST_URL: "https://pttensor.com/tensorhvac-licensing",
   HANDSHAKE_PASSWORD: "thvac-pro-2025-handshake-5f7c1a4e9b2d",
@@ -29,11 +38,15 @@ const EMBEDDED_CONFIG = {
 };
 // ============================================================
 
+// === Global references ===
+// Holds dynamic function imports and main window reference.
 let validateLicense;
 let isExpired;
 let mainWindow = null;
 
 /* ----------------------- HTML helpers ----------------------- */
+// Responsible for resolving and loading specific HTML views (login, app, etc.)
+// Also defines how the main Electron BrowserWindow is created and shown.
 function resolveHtml(rel) {
   return path.join(APP_PATH, rel);
 }
@@ -62,6 +75,8 @@ function createWindow(htmlFile) {
 }
 
 /* ----------------------- Cache helpers ---------------------- */
+// These handle reading, writing, and clearing cached license data.
+// Data is stored both in a JSON file and in secure Keytar storage.
 async function getCachedLicense() {
   try {
     if (fs.existsSync(CACHE_PATH)) {
@@ -86,6 +101,7 @@ async function clearCachedLicense() {
 }
 
 /* ------------------- Pro path persistence ------------------- */
+// Load or save user-defined override path for the Pro app executable.
 function loadProHint() {
   try {
     if (fs.existsSync(PRO_PATH_CONFIG)) {
@@ -107,6 +123,8 @@ function saveProHint(p) {
 }
 
 /* -------------------- Pro app resolution -------------------- */
+// Builds a list of all possible executable paths for the Pro app.
+// It prioritizes user overrides, environment hints, and embedded candidates.
 function candidateList() {
   const list = [];
   const userOverride = loadProHint();
@@ -121,6 +139,7 @@ function candidateList() {
   return [...new Set(list.filter(Boolean))];
 }
 
+// Searches for the first valid Pro executable path in the candidate list.
 function findProExecutable() {
   const unique = candidateList();
 
@@ -141,6 +160,8 @@ function findProExecutable() {
 }
 
 /* ------------------ Multi-strategy launcher ----------------- */
+// Launch logic for the Pro app. Tries several OS-specific methods (spawn, execFile, cmd, PowerShell, explorer).
+// Each strategy injects handshake credentials via environment variables and CLI arguments.
 function getLaunchEnv() {
   return {
     ...process.env,
@@ -153,6 +174,7 @@ function getArgs() {
   return [`--handshake=${EMBEDDED_CONFIG.HANDSHAKE_PASSWORD}`];
 }
 
+// Checks if a Windows process is currently running by executable name.
 function isProcessRunningWin(exeBaseName) {
   return new Promise((resolve) => {
     exec('tasklist /FO CSV /NH', { windowsHide: true }, (err, stdout) => {
@@ -168,6 +190,7 @@ function isProcessRunningWin(exeBaseName) {
   });
 }
 
+// Attempts to launch the Pro executable using multiple strategies for compatibility across OSes.
 function launchProApp() {
   const exe = findProExecutable();
   if (!exe) {
@@ -249,6 +272,8 @@ function launchProApp() {
 }
 
 /* ------------------------ Boot Flow ------------------------- */
+// Defines how the app decides which HTML file to load at startup.
+// Validates cached licenses, clears expired ones, and loads the correct interface.
 async function boot() {
   const cached = await getCachedLicense();
 
@@ -273,6 +298,8 @@ async function boot() {
 }
 
 /* -------------- Ensure env + dynamic import first ----------- */
+// Dynamically loads the license service module and binds its methods.
+// Also ensures LICENSE_LIST_URL is set correctly before import.
 async function loadServices() {
   if (!process.env.LICENSE_LIST_URL) {
     process.env.LICENSE_LIST_URL = EMBEDDED_CONFIG.LICENSE_LIST_URL;
@@ -289,12 +316,14 @@ async function loadServices() {
 }
 
 /* --------------------- Single instance ---------------------- */
+// Ensures only one instance of the app runs at a time.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 }
 
 /* ---------------------- App lifecycle ----------------------- */
+// Handles app startup, window creation, activation, and shutdown behaviors.
 app.whenReady().then(async () => {
   console.log("[MAIN] Mode:", isDev ? "Development" : "Production");
   console.log("[MAIN] APP_PATH:", APP_PATH);
@@ -324,7 +353,10 @@ app.on("window-all-closed", () => {
 });
 
 /* -------------------------- IPC ----------------------------- */
-// Validate & cache (returns descriptive message)
+// IPC handlers provide communication between the renderer and main process.
+// Includes licensing, logout, diagnostics, and launch commands.
+
+// Validate license and cache results
 ipcMain.handle("license:validate", async (_evt, { email, productKey }) => {
   try {
     const result = await validateLicense(email, productKey);
@@ -339,14 +371,14 @@ ipcMain.handle("license:validate", async (_evt, { email, productKey }) => {
   }
 });
 
-// Proceed to licensed UI (no auto-launch)
+// Switch to licensed app view after successful validation
 ipcMain.handle("app:proceed", async () => {
   if (!mainWindow) return { ok: false, message: "No main window" };
   await mainWindow.loadFile(resolveHtml("src/app.html"));
   return { ok: true };
 });
 
-// Optional helpers to inspect/clear cached license
+// Get or clear cached license info
 ipcMain.handle("license:status", async () => {
   try {
     const cached = await getCachedLicense();
@@ -364,7 +396,7 @@ ipcMain.handle("license:clear", async () => {
   }
 });
 
-// Launch the Pro app (button)
+// Launch the Pro version (main handshake-triggering operation)
 ipcMain.handle("pro:launch", async () => {
   const res = launchProApp();
   if (!res.ok) return res;
@@ -389,7 +421,7 @@ ipcMain.handle("pro:launch", async () => {
   };
 });
 
-// Diagnostics
+// Diagnostics and executable path selection helpers
 ipcMain.handle("pro:where", async () => {
   const exe = findProExecutable();
   return { exe, exists: !!(exe && fs.existsSync(exe)), platform: process.platform, candidates: candidateList() };
@@ -417,7 +449,7 @@ ipcMain.handle("pro:setHint", async (_e, p) => {
   return { ok: true, path: p };
 });
 
-// Logout (✅ this is the handler your renderer is calling)
+// Logout and return to login view (clears credentials)
 ipcMain.handle("app:logout", async () => {
   try {
     await clearCachedLicense();
